@@ -1,4 +1,4 @@
-function Append-Certificate {
+function Append-CertToPEM {
     <#
     .SYNOPSIS
         Appends a certificate to a PEM file, after checking for duplicates and validating the format of the PEM file
