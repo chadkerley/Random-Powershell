@@ -1,0 +1,29 @@
+param (
+    [string]$pemPath = "file.pem",
+    [string]$crtPath = "cert.crt"
+)
+
+# Check for duplicates
+$pem = Get-Content $pemPath
+$crt = Get-Content $crtPath
+$duplicate = Compare-Object -ReferenceObject $crt -DifferenceObject $pem -IncludeEqual
+
+if ($duplicate) {
+    Write-Host "Certificate already present in $pemPath"
+    return
+}
+
+# Validate format of PEM file
+$pemFormat = Get-Content $pemPath -Raw
+if (!($pemFormat -match "-----BEGIN.*-----")) {
+    Write-Host "Invalid PEM format in $pemPath"
+    return
+}
+
+# Make a backup of the original file
+$backup = "$pemPath.bak"
+Copy-Item -Path $pemPath -Destination $backup
+
+# Append the .crt file to the end of the .pem file
+Add-Content -Path $pemPath -Value $crt
+Write-Host "Certificate appended to $pemPath"
