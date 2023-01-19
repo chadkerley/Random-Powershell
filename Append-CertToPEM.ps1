@@ -10,7 +10,7 @@ function Append-CertToPEM {
     .PARAMETER CrtPath
         The path of the certificate file
     .EXAMPLE
-        Append-Certificate -PemPath "c:\path\to\file.pem" -CrtPath "c:\path\to\cert.crt"
+        Append-CertToPEM -PemPath "c:\path\to\file.pem" -CrtPath "c:\path\to\cert.crt"
     #>
     [CmdletBinding()]
     param (
