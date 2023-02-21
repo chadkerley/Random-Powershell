@@ -38,7 +38,7 @@ if ($productsCount -eq 0) {
 foreach ($product in $products) {
     $displayName = $product.DisplayName
     $uninstallString = $product.UninstallString
-    $guid = $product.PSChildName
+    $guid = (Get-ItemProperty "$key\$subkey" -Name 'ProductCode').ProductCode
     $registryPath = $product.PSParentPath
 
     # Log the product information
