@@ -2,7 +2,6 @@
 .\Remove-MSIProduct.ps1 -productName "Google Chrome" -silent
 
 #>
-
 [CmdletBinding()]
 param (
     [Parameter(Mandatory = $true, Position = 0)]
@@ -20,35 +19,20 @@ $registryPaths = @(
 # Search for matching products and retrieve the GUIDs
 $guids = @()
 foreach ($path in $registryPaths) {
-    $guids += Get-ChildItem -Path $path | Where-Object { $_.GetValue("DisplayName") -like "*$productName*" } | ForEach-Object { $_.Name }
+    $guids += Get-ChildItem -Path $path | Where-Object { $_.GetValue("DisplayName") -like "*$productName*" } | ForEach-Object { $_.PSChildName }
 }
 
 # Remove the Windows Installer packages and associated registry keys
 if ($guids.Count -gt 0) {
     Write-Host "The following products will be removed:" -ForegroundColor Yellow
     Write-Host $guids -ForegroundColor Yellow
-    if ($silent) {
-        foreach ($guid in $guids) {
-            # Remove the Windows Installer package using PowerShell
-            $installer = [WMICLASS]"\\.\ROOT\cimv2:Win32_Product"
-            $software = $installer.Get()
-            foreach ($app in $software) {
-                if ($app.IdentifyingNumber -eq $guid) {
-                    $installer.Uninstall($app.IdentifyingNumber)
-                }
-            }
+    foreach ($guid in $guids) {
+        # Get the product name and registry key path for confirmation
+        $displayName = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$guid").DisplayName
+        $uninstallKeyPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$guid"
 
-            # Delete the registry keys associated with the MSI package
-            Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Products\$guid" -Recurse
-            Remove-Item -Path "HKLM:\SOFTWARE\Classes\Installer\Products\$guid" -Recurse
-            Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$guid" -Recurse
-        }
-        Write-Host "Uninstallation complete." -ForegroundColor Green
-    }
-    else {
-        $confirm = Read-Host "Do you want to proceed with the uninstall? (Y/N)"
-        if ($confirm -eq "Y" -or $confirm -eq "y") {
-            foreach ($guid in $guids) {
+        if ($silent) {
+            try {
                 # Remove the Windows Installer package using PowerShell
                 $installer = [WMICLASS]"\\.\ROOT\cimv2:Win32_Product"
                 $software = $installer.Get()
@@ -59,17 +43,63 @@ if ($guids.Count -gt 0) {
                 }
 
                 # Delete the registry keys associated with the MSI package
-                Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Products\$guid" -Recurse
-                Remove-Item -Path "HKLM:\SOFTWARE\Classes\Installer\Products\$guid" -Recurse
-                Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$guid" -Recurse
+                Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Products\$guid" -Recurse -ErrorAction Stop
+                Remove-Item -Path "HKLM:\SOFTWARE\Classes\Installer\Products\$guid" -Recurse -ErrorAction Stop
+                Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$guid" -Recurse -ErrorAction Stop
+
+                # Log the actions to the log file
+                $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+                Add-Content -Path "C:\Temp\Remove-MSIProduct.log" -Value "$timestamp Product '$displayName' was uninstalled."
+
+                Write-Host "Product '$displayName' was uninstalled." -ForegroundColor Green
             }
-            Write-Host "Uninstallation complete." -ForegroundColor Green
+            catch {
+                Write-Host "Error: $_" -ForegroundColor Red
+            }
         }
         else {
-            Write-Host "Uninstallation cancelled." -ForegroundColor Red
+            $confirm = Read-Host "Do you want to proceed with the uninstall of product '$displayName' with registry key path '$uninstallKeyPath'? (Y/N)"
+            if ($confirm -eq "Y" -or $confirm -eq "y") {
+                try {
+                    # Remove the Windows Installer package using PowerShell
+                    $installer = [WMICLASS]"\\.\ROOT\cimv2:Win32_Product"
+                    $software = $installer.Get()
+                    foreach ($app in $software) {
+                        if ($app.IdentifyingNumber -eq $guid) {
+                            $installer.Uninstall($app.IdentifyingNumber)
+                        }
+                    }
+
+                    # Delete the registry keys associated with the MSI package
+                    if (Test-Path -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Products\$guid") {
+                        Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Products\$guid" -Recurse -ErrorAction Stop
+                    }
+
+                    if (Test-Path -Path "HKLM:\SOFTWARE\Classes\Installer\Products\$guid") {
+                        Remove-Item -Path "HKLM:\SOFTWARE\Classes\Installer\Products\$guid" -Recurse -ErrorAction Stop
+                    }
+
+                    if (Test-Path -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$guid") {
+                        Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$guid" -Recurse -ErrorAction Stop
+                    }
+
+                    # Log the actions to the log file
+                    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+                    Add-Content -Path "C:\Temp\Remove-MSIProduct.log" -Value "$timestamp Product '$displayName' was uninstalled."
+
+                    Write-Host "Product '$displayName' was uninstalled." -ForegroundColor Green
+                }
+                catch {
+                    Write-Host "Error: $_" -ForegroundColor Red
+                }
+            }
+            else {
+                Write-Host "Product '$displayName' was not uninstalled." -ForegroundColor Yellow
+            }
         }
     }
 }
 else {
-    Write-Host "No products found with the name '$productName'." -ForegroundColor Yellow
+    Write-Host "No matching products found." -ForegroundColor Yellow
 }
+
