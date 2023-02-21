@@ -3,103 +3,92 @@
 
 #>
 [CmdletBinding()]
-param (
-    [Parameter(Mandatory = $true, Position = 0)]
+Param(
+    [Parameter(Mandatory = $true)]
     [string]$productName,
 
     [switch]$silent
 )
 
-# Define the registry paths to search
-$registryPaths = @(
-    "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
-    "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
-)
+$timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+$logPath = "C:\Temp\Remove-MSIProduct.log"
 
-# Search for matching products and retrieve the GUIDs
-$guids = @()
-foreach ($path in $registryPaths) {
-    $guids += Get-ChildItem -Path $path | Where-Object { $_.GetValue("DisplayName") -like "*$productName*" } | ForEach-Object { $_.PSChildName }
+# Log the start of the script
+Add-Content -Path $logPath -Value "$timestamp Starting Remove-MSIProduct with product name '$productName'."
+Write-Host "Starting Remove-MSIProduct with product name '$productName'." -ForegroundColor Green
+
+# Search the registry for the product name
+$products = Get-ChildItem -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Products\", "HKLM:\SOFTWARE\Classes\Installer\Products\", "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\" -Recurse |
+            ForEach-Object { Get-ItemProperty $_.PsPath } |
+            Where-Object { $_.DisplayName -like "*$productName*" -and $_.SystemComponent -ne 1 }
+
+# Log the number of products found
+$productsCount = $products.Count
+Add-Content -Path $logPath -Value "$timestamp Found $productsCount product(s) with name '$productName'."
+Write-Host "Found $productsCount product(s) with name '$productName'." -ForegroundColor Green
+
+# If no products were found, exit the script
+if ($productsCount -eq 0) {
+    Add-Content -Path $logPath -Value "$timestamp No products found with name '$productName'."
+    Write-Host "No products found with name '$productName'." -ForegroundColor Yellow
+    exit
 }
 
-# Remove the Windows Installer packages and associated registry keys
-if ($guids.Count -gt 0) {
-    Write-Host "The following products will be removed:" -ForegroundColor Yellow
-    Write-Host $guids -ForegroundColor Yellow
-    foreach ($guid in $guids) {
-        # Get the product name and registry key path for confirmation
-        $displayName = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$guid").DisplayName
-        $uninstallKeyPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$guid"
+# Iterate through each product and uninstall it
+foreach ($product in $products) {
+    $displayName = $product.DisplayName
+    $uninstallString = $product.UninstallString
+    $guid = $product.PSChildName
+    $registryPath = $product.PSParentPath
 
-        if ($silent) {
-            try {
-                # Remove the Windows Installer package using PowerShell
-                $installer = [WMICLASS]"\\.\ROOT\cimv2:Win32_Product"
-                $software = $installer.Get()
-                foreach ($app in $software) {
-                    if ($app.IdentifyingNumber -eq $guid) {
-                        $installer.Uninstall($app.IdentifyingNumber)
-                    }
-                }
+    # Log the product information
+    Add-Content -Path $logPath -Value "$timestamp Product '$displayName' found with GUID '$guid' in '$registryPath'."
+    Write-Host "Product '$displayName' found with GUID '$guid' in '$registryPath'." -ForegroundColor Green
 
-                # Delete the registry keys associated with the MSI package
-                Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Products\$guid" -Recurse -ErrorAction Stop
-                Remove-Item -Path "HKLM:\SOFTWARE\Classes\Installer\Products\$guid" -Recurse -ErrorAction Stop
-                Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$guid" -Recurse -ErrorAction Stop
-
-                # Log the actions to the log file
-                $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-                Add-Content -Path "C:\Temp\Remove-MSIProduct.log" -Value "$timestamp Product '$displayName' was uninstalled."
-
-                Write-Host "Product '$displayName' was uninstalled." -ForegroundColor Green
-            }
-            catch {
-                Write-Host "Error: $_" -ForegroundColor Red
-            }
+    # Confirm deletion unless -silent is specified
+    if (!$silent) {
+        $message = "Do you want to uninstall product '$displayName' (GUID: $guid) from '$registryPath'?"
+        $result = Read-Host -Prompt $message
+        if ($result -ne 'y' -and $result -ne 'Y') {
+            Write-Host "Skipping product '$displayName'." -ForegroundColor Yellow
+            continue
         }
-        else {
-            $confirm = Read-Host "Do you want to proceed with the uninstall of product '$displayName' with registry key path '$uninstallKeyPath'? (Y/N)"
-            if ($confirm -eq "Y" -or $confirm -eq "y") {
-                try {
-                    # Remove the Windows Installer package using PowerShell
-                    $installer = [WMICLASS]"\\.\ROOT\cimv2:Win32_Product"
-                    $software = $installer.Get()
-                    foreach ($app in $software) {
-                        if ($app.IdentifyingNumber -eq $guid) {
-                            $installer.Uninstall($app.IdentifyingNumber)
-                        }
-                    }
+    }
 
-                    # Delete the registry keys associated with the MSI package
-                    if (Test-Path -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Products\$guid") {
-                        Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Products\$guid" -Recurse -ErrorAction Stop
-                    }
+    # Uninstall the product
+    try {
+        $command = $uninstallString -replace "/I{", "/X{"
+        $process = Start-Process -FilePath "msiexec.exe" -ArgumentList "/qn", $command -Wait -NoNewWindow -PassThru
+        if ($process.ExitCode -eq 0) {
+            Add-Content -Path $logPath -Value "$timestamp Product '$displayName' with GUID '$guid' uninstalled successfully."
+            Write-Host "Product '$displayName' with GUID '$guid' uninstalled successfully." -ForegroundColor Green
+        } else {
+            Add-Content -Path $logPath -Value "$timestamp Failed to uninstall product '$displayName' with GUID '$guid'."
+            Write-Host "Failed to uninstall product ' '$displayName' with GUID '$guid'." -ForegroundColor Red
+        }
+    } catch {
+        Add-Content -Path $logPath -Value "$timestamp Failed to uninstall product '$displayName' with GUID '$guid': $_."
+        Write-Host "Failed to uninstall product '$displayName' with GUID '$guid': $_." -ForegroundColor Red
+    }
 
-                    if (Test-Path -Path "HKLM:\SOFTWARE\Classes\Installer\Products\$guid") {
-                        Remove-Item -Path "HKLM:\SOFTWARE\Classes\Installer\Products\$guid" -Recurse -ErrorAction Stop
-                    }
-
-                    if (Test-Path -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$guid") {
-                        Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$guid" -Recurse -ErrorAction Stop
-                    }
-
-                    # Log the actions to the log file
-                    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-                    Add-Content -Path "C:\Temp\Remove-MSIProduct.log" -Value "$timestamp Product '$displayName' was uninstalled."
-
-                    Write-Host "Product '$displayName' was uninstalled." -ForegroundColor Green
-                }
-                catch {
-                    Write-Host "Error: $_" -ForegroundColor Red
-                }
-            }
-            else {
-                Write-Host "Product '$displayName' was not uninstalled." -ForegroundColor Yellow
-            }
+    # Delete the registry keys associated with the product
+    $regKeys = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Products\$guid",
+               "HKLM:\SOFTWARE\Classes\Installer\Products\$guid",
+               "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$guid"
+    foreach ($key in $regKeys) {
+        if (Test-Path $key) {
+            Remove-Item -Path $key -Recurse -Force
+            Add-Content -Path $logPath -Value "$timestamp Registry key '$key' deleted."
+            Write-Host "Registry key '$key' deleted." -ForegroundColor Green
+        } else {
+            Add-Content -Path $logPath -Value "$timestamp Registry key '$key' not found."
+            Write-Host "Registry key '$key' not found." -ForegroundColor Yellow
         }
     }
 }
-else {
-    Write-Host "No matching products found." -ForegroundColor Yellow
-}
+
+# Log the end of the script
+$timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+Add-Content -Path $logPath -Value "$timestamp Remove-MSIProduct finished."
+Write-Host "Remove-MSIProduct finished." -ForegroundColor Green
 
