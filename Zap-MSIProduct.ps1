@@ -18,7 +18,7 @@ $scriptBlock = {
     $productName = $using:ProductName
 
     # Find all installed products that match the product name
-    $matchingProducts = Get-WmiObject -Class Win32_Product | Where-Object { $_.Name -like "*$productName*" }
+    $matchingProducts = Get-WmiObject -Class Win32_Product | Where-Object { $_.Name -like "*$ProductName*" }
 
     # Iterate through the matching products and zap each one
     foreach ($product in $matchingProducts) {
@@ -29,7 +29,7 @@ $scriptBlock = {
 
     # Log changes made to Remove-MSIProduct.log in C:\temp
     $logPath = "C:\temp\Remove-MSIProduct.log"
-    $logEntry = "$(Get-Date): Removed $($matchingProducts.Count) products matching '$productName'"
+    $logEntry = "$(Get-Date): Removed $($matchingProducts.Count) products matching '$ProductName'"
     Add-Content -Path $logPath -Value $logEntry
 }
 
