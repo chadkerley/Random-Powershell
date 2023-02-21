@@ -23,7 +23,7 @@ $scriptBlock = {
     # Iterate through the matching products and zap each one
     foreach ($product in $matchingProducts) {
         $productGuid = $product.IdentifyingNumber
-        Write-Host "Zapping product $productGuid: $($product.Name)"
+        Write-Host "Zapping product $productGuid: $($Product.Name)"
         & C:\Temp\msizap.exe TP! $productGuid | Out-Null
     }
 
