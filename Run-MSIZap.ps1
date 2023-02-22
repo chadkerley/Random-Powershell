@@ -12,9 +12,9 @@ The name of the product to be removed.
 The name of the remote computer.
 
 .EXAMPLE
-.\Remove-Product.ps1 -ProductName "Google Chrome" -Computer "computername"
+.\Remove-Product.ps1 -ProductName "Google Chrome" -Computer "remote-computer"
 
-This command removes the product "Google Chrome" from the computer "computername".
+This command removes the product "Google Chrome" from the computer "remote-computer".
 
 .NOTES
 Date: 2/21/23
@@ -43,14 +43,22 @@ $logHeader = "Product Name, GUID, Status`n"
 $logHeader | Out-File -FilePath $logFilePath -Encoding ascii
 
 # Copy MSIZap.exe to the remote computer
+Write-Host "Copying MSIZap.exe to $destinationFolder"
 Copy-Item $MSIZapPath $destinationFolder
 
 # Find the GUIDs for all products matching the provided product name on the remote computer
-$productGuids = & $psexecPath \\$Computer powershell.exe -Command "$ProductList = Get-WmiObject -Class Win32_Product | Where-Object {$_.Name -eq '$ProductName'}; $ProductList | ForEach-Object {Write-Output $_.IdentifyingNumber}"
+Write-Host "Finding GUIDs for $ProductName on $Computer"
+$productGuids = & $psexecPath \\$Computer powershell.exe -Command "Get-ItemProperty HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*, HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\* | Where-Object {$_.DisplayName -eq '$ProductName'} | ForEach-Object {Write-Output $_.PSChildName}"
 
 # Use MSIZap to completely remove all products with the matching GUIDs
 foreach ($guid in $productGuids) {
+    Write-Host "Removing product $ProductName with GUID $guid from $Computer"
     $status = & $psexecPath \\$Computer cmd /c "$destinationFolder\MSIZap.exe tw! {$guid} 2>&1"
     $logLine = "$ProductName, $guid, $status`n"
     $logLine | Out-File -FilePath $logFilePath -Encoding ascii -Append
+    if ($status -match "error") {
+        Write-Host "Error removing product $ProductName with GUID $guid from $Computer: $status"
+    } else {
+        Write-Host "Product $ProductName with GUID $guid was successfully removed from $Computer"
+    }
 }
