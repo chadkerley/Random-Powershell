@@ -14,8 +14,10 @@ $uninstallKeys = Get-ChildItem $uninstall32,$uninstall64 | Get-ItemProperty | Wh
 # Extract the GUID from the UninstallString property
 $guids = $uninstallKeys | ForEach-Object {
     $uninstallString = $_.UninstallString
-    if ($uninstallString -match "({[A-Fa-f0-9-]+})") {
-        $matches[1]
+    $guidRegex = [regex]"{[A-Fa-f0-9-]+}"
+    $guid = $guidRegex.Match($uninstallString).Value
+    if ($guid) {
+        $guid
     }
 }
 
