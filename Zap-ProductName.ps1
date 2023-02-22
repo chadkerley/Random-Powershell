@@ -26,19 +26,32 @@ $guids += Get-WmiObject -Class win32_product | Where-Object {$_.Name -like "*$Pr
 
 # Initialize the log file
 $logFile = "C:\temp\msizap.log"
+
+# Write to the console and log file that we're starting
+Write-Host "Running MSIZap.exe for product $ProductName..."
 "Running MSIZap.exe for product $ProductName..." | Out-File $logFile
 
 # Loop through the GUIDs and run MSIZap.exe for each one
 foreach ($guid in $guids) {
+    # Write to the console and log file that we're removing the product with the current GUID
+    Write-Host "Removing product with GUID $guid..."
     "Removing product with GUID $guid..." | Out-File $logFile -Append
+    
+    # Run MSIZap.exe for the current GUID
     $msizapArgs = "T[WA!]", $guid
-    $msizapProcess = Start-Process -FilePath "msizap.exe" -ArgumentList $msizapArgs -NoNewWindow -PassThru
+    $msizapProcess = Start-Process -FilePath ".\msizap.exe" -ArgumentList $msizapArgs -NoNewWindow -PassThru
+    
+    # Check the exit code of MSIZap.exe and write to the console and log file accordingly
     if ($msizapProcess.ExitCode -eq 0) {
+        Write-Host "Product with GUID $guid removed successfully."
         "Product with GUID $guid removed successfully." | Out-File $logFile -Append
     }
     else {
+        Write-Host "Error removing product with GUID $guid: Exit code $($msizapProcess.ExitCode)."
         "Error removing product with GUID $guid: Exit code $($msizapProcess.ExitCode)." | Out-File $logFile -Append
     }
 }
 
-"Finished running MSIZap.exe for product $ProductName." | Out-File $logFile -Append
+# Write to the console and log file that we're finished
+Write-Host "MSIZap.exe complete for product $ProductName."
+"MSIZap.exe complete for product $ProductName." | Out-File $logFile -Append
