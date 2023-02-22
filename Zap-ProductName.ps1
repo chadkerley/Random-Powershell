@@ -31,21 +31,23 @@ $logFile = "C:\temp\msizap.log"
 Write-Host "Running MSIZap.exe for product $ProductName..."
 "Running MSIZap.exe for product $ProductName..." | Out-File $logFile
 
-# Build an argument array for MSIZap.exe with all the GUIDs
-$msizapArgs = @("T[WA!]")
-$msizapArgs += $guids
+# Loop through each GUID and run MSIZap.exe
+foreach ($guid in $guids) {
+    # Build an argument array for MSIZap.exe with the current GUID
+    $msizapArgs = @("TW!", $guid)
 
-# Run MSIZap.exe with all the GUIDs
-$msizapProcess = Start-Process -FilePath ".\msizap.exe" -ArgumentList $msizapArgs -NoNewWindow -PassThru
+    # Run MSIZap.exe with the current GUID
+    $msizapProcess = Start-Process -FilePath ".\msizap.exe" -ArgumentList $msizapArgs -NoNewWindow -PassThru
 
-# Check the exit code of MSIZap.exe and write to the console and log file accordingly
-if ($msizapProcess.ExitCode -eq 0) {
-    Write-Host "Product with GUIDs $($guids -join ",") removed successfully."
-    "Product with GUIDs $($guids -join ",") removed successfully." | Out-File $logFile -Append
-}
-else {
-    Write-Host "Error removing product with GUIDs $($guids -join ","): Exit code $($msizapProcess.ExitCode)."
-    "Error removing product with GUIDs $($guids -join ","): Exit code $($msizapProcess.ExitCode)." | Out-File $logFile -Append
+    # Check the exit code of MSIZap.exe and write to the console and log file accordingly
+    if ($msizapProcess.ExitCode -eq 0) {
+        Write-Host "Product with GUID $guid removed successfully."
+        "Product with GUID $guid removed successfully." | Out-File $logFile -Append
+    }
+    else {
+        Write-Host "Error removing product with GUID $guid: Exit code $($msizapProcess.ExitCode)."
+        "Error removing product with GUID $guid Exit code $($msizapProcess.ExitCode)." | Out-File $logFile -Append
+    }
 }
 
 # Write to the console and log file that we're finished
