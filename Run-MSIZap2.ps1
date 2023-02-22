@@ -1,47 +1,50 @@
 [CmdletBinding()]
-param(
-    [Parameter(Mandatory = $true)]
+Param (
+    [Parameter(Mandatory=$True)]
     [string]$ProductName,
-
-    [Parameter(Mandatory = $true)]
+    [Parameter(Mandatory=$True)]
     [string]$Computer
 )
 
-$LogFile = "Remove-$ProductName.log"
-$LogFilePath = "\\$Computer\c$\temp\$LogFile"
-
-Write-Output "Starting removal of $ProductName from $Computer..." | Tee-Object -FilePath $LogFilePath -Append
-
-try {
-    $Product32 = Get-WmiObject -Class Win32_Product -ComputerName $Computer -Filter "Name='$ProductName'" | Select-Object -First 1
-    if ($Product32) {
-        $GUID = $Product32.IdentifyingNumber
-        Write-Output "Found 32-bit version of $ProductName with GUID ${GUID}" | Tee-Object -FilePath $LogFilePath -Append
-        $Status = Start-Process -FilePath "C:\tools\pstools\psexec.exe" -ArgumentList "\\$Computer C:\Windows\System32\MsiZap.exe tw! ${GUID}" -Wait -Passthru
-        if ($Status.ExitCode -eq 0) {
-            Write-Output "Removed 32-bit version of $ProductName with GUID ${GUID} from $Computer" | Tee-Object -FilePath $LogFilePath -Append
-        } else {
-            Write-Output "Error removing 32-bit version of $ProductName with GUID ${GUID} from $Computer: $Status" | Tee-Object -FilePath $LogFilePath -Append
-        }
-    } else {
-        Write-Output "No 32-bit version of $ProductName found on $Computer" | Tee-Object -FilePath $LogFilePath -Append
-    }
-
-    $Product64 = Get-WmiObject -Class Win32_Product -ComputerName $Computer -Filter "Name='$ProductName'" -Namespace "root\CIMV2" | Select-Object -First 1
-    if ($Product64) {
-        $GUID = $Product64.IdentifyingNumber
-        Write-Output "Found 64-bit version of $ProductName with GUID ${GUID}" | Tee-Object -FilePath $LogFilePath -Append
-        $Status = Start-Process -FilePath "C:\tools\pstools\psexec.exe" -ArgumentList "\\$Computer C:\Windows\SysWOW64\MsiZap.exe tw! ${GUID}" -Wait -Passthru
-        if ($Status.ExitCode -eq 0) {
-            Write-Output "Removed 64-bit version of $ProductName with GUID ${GUID} from $Computer" | Tee-Object -FilePath $LogFilePath -Append
-        } else {
-            Write-Output "Error removing 64-bit version of $ProductName with GUID ${GUID} from $Computer: $Status" | Tee-Object -FilePath $LogFilePath -Append
-        }
-    } else {
-        Write-Output "No 64-bit version of $ProductName found on $Computer" | Tee-Object -FilePath $LogFilePath -Append
-    }
-} catch {
-    Write-Output "An error occurred while removing $ProductName from $Computer: $_" | Tee-Object -FilePath $LogFilePath -Append
+# Write progress to console and log file
+function Write-ProgressLog($Message)
+{
+    Write-Host $Message
+    Add-Content $LogFilePath $Message
 }
 
-Write-Output "Removal of $ProductName from $Computer completed" | Tee-Object -FilePath $LogFilePath -Append
+# Set log file path
+$LogFilePath = "\\$Computer\c$\temp\Remove-$ProductName.log"
+
+# Get 32-bit and 64-bit GUIDs using Win32_Product
+$Products = Get-WmiObject -Class Win32_Product -ComputerName $Computer | Where-Object {$_.Name -like "*$ProductName*"}
+$Guids = @()
+foreach ($Product in $Products) {
+    $Guids += $Product.IdentifyingNumber
+}
+
+# Write found products and GUIDs to log file
+Write-ProgressLog "`nFound the following products and GUIDs:`n"
+foreach ($Guid in $Guids) {
+    $Product = ($Products | Where-Object {$_.IdentifyingNumber -eq $Guid}).Name
+    Write-ProgressLog "Product: $Product"
+    Write-ProgressLog "GUID: $Guid`n"
+}
+
+# Remove products with MSIZap
+if ($Guids.Count -gt 0) {
+    Write-ProgressLog "`nRemoving products..."
+    $PsExec = "\\$Computer\c$\tools\pstools\psexec.exe"
+    $MSIZap = "\\$Computer\c$\temp\MSIZap.exe"
+    foreach ($Guid in $Guids) {
+        # Remove 32-bit version of product
+        $Status = & $PsExec \\$Computer -s -accepteula $MSIZap tw! {$Guid} 2>&1
+        Write-ProgressLog "Removing 32-bit version of $ProductName with GUID ${Guid} from $Computer: $Status"
+
+        # Remove 64-bit version of product
+        $Status = & $PsExec -s -accepteula \\$Computer $env:windir\sysnative\MSIZap.exe tw! {$Guid} 2>&1
+        Write-ProgressLog "Removing 64-bit version of $ProductName with GUID ${Guid} from $Computer: $Status"
+    }
+} else {
+    Write-ProgressLog "`nNo products found matching $ProductName."
+}
