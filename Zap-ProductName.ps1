@@ -31,25 +31,21 @@ $logFile = "C:\temp\msizap.log"
 Write-Host "Running MSIZap.exe for product $ProductName..."
 "Running MSIZap.exe for product $ProductName..." | Out-File $logFile
 
-# Loop through the GUIDs and run MSIZap.exe for each one
-foreach ($guid in $guids) {
-    # Write to the console and log file that we're removing the product with the current GUID
-    Write-Host "Removing product with GUID $guid..."
-    "Removing product with GUID $guid..." | Out-File $logFile -Append
-    
-    # Run MSIZap.exe for the current GUID
-    $msizapArgs = "T[WA!]", $guid
-    $msizapProcess = Start-Process -FilePath ".\msizap.exe" -ArgumentList $msizapArgs -NoNewWindow -PassThru
-    
-    # Check the exit code of MSIZap.exe and write to the console and log file accordingly
-    if ($msizapProcess.ExitCode -eq 0) {
-        Write-Host "Product with GUID $guid removed successfully."
-        "Product with GUID $guid removed successfully." | Out-File $logFile -Append
-    }
-    else {
-        Write-Host "Error removing product with GUID $guid: Exit code $($msizapProcess.ExitCode)."
-        "Error removing product with GUID $guid: Exit code $($msizapProcess.ExitCode)." | Out-File $logFile -Append
-    }
+# Build an argument array for MSIZap.exe with all the GUIDs
+$msizapArgs = @("T[WA!]")
+$msizapArgs += $guids
+
+# Run MSIZap.exe with all the GUIDs
+$msizapProcess = Start-Process -FilePath ".\msizap.exe" -ArgumentList $msizapArgs -NoNewWindow -PassThru
+
+# Check the exit code of MSIZap.exe and write to the console and log file accordingly
+if ($msizapProcess.ExitCode -eq 0) {
+    Write-Host "Product with GUIDs $($guids -join ",") removed successfully."
+    "Product with GUIDs $($guids -join ",") removed successfully." | Out-File $logFile -Append
+}
+else {
+    Write-Host "Error removing product with GUIDs $($guids -join ","): Exit code $($msizapProcess.ExitCode)."
+    "Error removing product with GUIDs $($guids -join ","): Exit code $($msizapProcess.ExitCode)." | Out-File $logFile -Append
 }
 
 # Write to the console and log file that we're finished
