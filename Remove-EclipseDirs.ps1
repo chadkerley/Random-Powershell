@@ -4,6 +4,8 @@ $foldersToDelete = @(
     "70"
 )
 
+$logFile = "C:\temp\EclipseCleanup.log"
+
 $userProfiles = Get-ChildItem "C:\Users\" -Directory
 
 foreach ($userProfile in $userProfiles) {
@@ -13,9 +15,12 @@ foreach ($userProfile in $userProfiles) {
             try {
                 Write-Host "Deleting $folderPath"
                 Remove-Item -Path $folderPath -Recurse -Force -ErrorAction Stop
+                Add-Content -Path $logFile -Value "Deleted folder $folderPath"
             }
             catch {
-                Write-Host "Error deleting $folderPath: $_"
+                $errorMessage = "Error deleting $folderPath - $_"
+                Write-Host $errorMessage
+                Add-Content -Path $logFile -Value $errorMessage
             }
         }
     }
