@@ -15,10 +15,6 @@ If specified, only user profiles with usernames ending in the letter 'A' will be
 PS C:\> Remove-StaleUsers -Days 90
 This example removes user profiles that have not been logged into for 90 days.
 
-.NOTES
-Author: ChatGPT
-Date: 2023-02-24
-Version: 1.2
 #>
 
 [CmdletBinding()]
