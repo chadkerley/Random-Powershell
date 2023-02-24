@@ -1,8 +1,6 @@
 <#
 .EXAMPLE
 .\Update-UWPApp.ps1 -Package "Microsoft.HEIFImageExtensions" -Version "1.0.43341.0" -Path ".\Microsoft.HEIFImageExtensions_1.0.43341.0_x64.appx"
-
-
 #>
 
 param (
@@ -13,6 +11,9 @@ param (
 
 # Remove all versions of the app that are less than the one we're installing
 Get-AppxPackage -Name $Package -AllUsers | Where-Object { $_.Version -lt $Version } | Remove-AppxPackage -AllUsers
+
+# Remove provisioned packages for the old version
+Get-AppxProvisionedPackage -Online | Where-Object { $_.PackageName -eq $Package -and $_.PackageVersion -lt $Version } | Remove-AppxProvisionedPackage -Online
 
 # Install the remediated version of the app for all users
 Add-AppxPackage -Path $Path -AllUsers
