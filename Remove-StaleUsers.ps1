@@ -61,9 +61,24 @@ foreach ($profile in $profiles) {
             }
         }
 
+        # Check if the user is excluded (local admin, Default profile, or Public profile)
+        if ($username -eq 'Administrator' -or $username -eq 'Default' -or $username -eq 'Public') {
+            Write-Host "Skipping $username because it is excluded"
+            Add-Content -Path $logFile -Value ($logFormat -f "Skipping $username because it is excluded")
+            continue
+        }
+
         # Remove the user profile
         Write-Host "Removing profile for $username"
         Add-Content -Path $logFile -Value ($logFormat -f "Removing profile for $username")
         Remove-Item -Path "C:\Users\$username" -Recurse -Force -WhatIf | Out-Null
+
+        # Remove the user's registry information
+        $sid = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList" | Where-Object { $_.PSChildName -like "*$username*" }).PSChildName
+        if ($sid) {
+            Write-Host "Removing registry information for $username"
+            Add-Content -Path $logFile -Value ($logFormat -f "Removing registry information for $username")
+            Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$sid" -Recurse -Force -WhatIf | Out-Null
+        }
     }
 }
