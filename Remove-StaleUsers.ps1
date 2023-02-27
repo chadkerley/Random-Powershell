@@ -42,43 +42,36 @@ New-Item -ItemType File -Path $logFile -Force | Out-Null
 $date = (Get-Date).AddDays(-$Days)
 
 # Get list of user profiles on the machine
-$profiles = Get-ChildItem -Path 'C:\Users' -Directory | Select-Object -ExpandProperty Name
+$profiles = Get-ChildItem -Path 'C:\Users' -Directory -Name
 
 # Loop through each user profile and determine if it should be removed
 foreach ($profile in $profiles) {
-    $username = $profile
+    if ($profile -in 'Administrator', 'Default', 'Public') {
+        Write-Host "Skipping $profile because it is a system profile"
+        Add-Content -Path $logFile -Value ($logFormat -f "Skipping $profile because it is a system profile")
+        continue
+    }
 
     # Check if the user is inactive
-    $lastWriteTime = (Get-Item -Path "C:\Users\$username").LastWriteTime
+    $lastWriteTime = (Get-Item -Path "C:\Users\$profile").LastWriteTime
     if ($lastWriteTime -lt $date) {
 
         # Check if the user is an admin (if -AdminOnly switch is used)
         if ($AdminOnly) {
-            if ($username[-1] -ne 'A') {
-                Write-Host "Skipping $username because it does not end with 'A'"
-                Add-Content -Path $logFile -Value ($logFormat -f "Skipping $username because it does not end with 'A'")
+            if ($profile[-1] -ne 'A') {
+                Write-Host "Skipping $profile because it does not end with 'A'"
+                Add-Content -Path $logFile -Value ($logFormat -f "Skipping $profile because it does not end with 'A'")
                 continue
             }
         }
 
-        # Check if the user is excluded (local admin, Default profile, or Public profile)
-        if ($username -eq 'Administrator' -or $username -eq 'Default' -or $username -eq 'Public') {
-            Write-Host "Skipping $username because it is excluded"
-            Add-Content -Path $logFile -Value ($logFormat -f "Skipping $username because it is excluded")
-            continue
-        }
-
-        # Remove the user profile
-        Write-Host "Removing profile for $username"
-        Add-Content -Path $logFile -Value ($logFormat -f "Removing profile for $username")
-        Remove-Item -Path "C:\Users\$username" -Recurse -Force -WhatIf | Out-Null
-
-        # Remove the user's registry information
-        $sid = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList" | Where-Object { $_.PSChildName -like "*$username*" }).PSChildName
-        if ($sid) {
-            Write-Host "Removing registry information for $username"
-            Add-Content -Path $logFile -Value ($logFormat -f "Removing registry information for $username")
-            Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$sid" -Recurse -Force -WhatIf | Out-Null
-        }
+        # Remove the user profile and registry key
+        $profilePath = "C:\Users\$profile"
+        $regPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$profile"
+        Write-Host "Removing profile for $profile"
+        Add-Content -Path $logFile -Value ($logFormat -f "Removing profile for $profile")
+        Remove-Item -Path $profilePath -Recurse -Force | Out-Null
+        Remove-Item -Path $regPath -Recurse -Force | Out-Null
     }
 }
+
