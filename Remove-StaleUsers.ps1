@@ -16,7 +16,6 @@ PS C:\> Remove-StaleUsers -Days 90
 This example removes user profiles that have not been logged into for 90 days.
 
 #>
-
 [CmdletBinding()]
 param (
     [Parameter(Mandatory = $false)]
@@ -51,9 +50,16 @@ foreach ($profile in $profiles) {
         Add-Content -Path $logFile -Value ($logFormat -f "Skipping $profile because it is a system profile")
         continue
     }
+    
+    # Check if the profile name matches the excluded accounts
+    if ($profile -like "dt12345" -or $profile -like "svc*" -or $profile -like "auto*") {
+        Write-Host "Skipping $profile because it is an excluded account"
+        Add-Content -Path $logFile -Value ($logFormat -f "Skipping $profile because it is an excluded account")
+        continue
+    }
 
     # Check if the user is inactive
-    $lastWriteTime = (Get-Item -Path "C:\Users\$profile").LastWriteTime
+    $lastWriteTime = (Get-ChildItem -Path "C:\Users\$profile\NTUSER.INI" -Recurse).LastWriteTime
     if ($lastWriteTime -lt $date) {
 
         # Check if the user is an admin (if -AdminOnly switch is used)
