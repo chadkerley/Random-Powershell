@@ -52,7 +52,7 @@ foreach ($profile in $profiles) {
     }
     
     # Check if the profile name matches the excluded accounts
-    if ($profile -like "dt12345" -or $profile -like "svc*" -or $profile -like "auto*") {
+    if ($profile -like "abc123" -or $profile -like "svc*" -or $profile -like "auto*") {
         Write-Host "Skipping $profile because it is an excluded account"
         Add-Content -Path $logFile -Value ($logFormat -f "Skipping $profile because it is an excluded account")
         continue
