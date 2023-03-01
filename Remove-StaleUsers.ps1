@@ -64,7 +64,7 @@ foreach ($profile in $profiles) {
 
         # Check if the user is an admin (if -AdminOnly switch is used)
         if ($AdminOnly) {
-            if ($profile[-1] -ne 'A') {
+            if ($profile[-1] -ne 'Z') {
                 Write-Host "Skipping $profile because it does not end with 'A'"
                 Add-Content -Path $logFile -Value ($logFormat -f "Skipping $profile because it does not end with 'A'")
                 continue
