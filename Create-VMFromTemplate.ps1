@@ -17,7 +17,7 @@ foreach ($computerName in $hostnames) {
     $vmConfig = New-VM -Name $computerName -Template $templateName -Datastore $datastore.Name
 
     # Start the VM
-    # Start-VM -VM $vmConfig
+    $vmConfig
 }
 
 # Disconnect from vSphere server
