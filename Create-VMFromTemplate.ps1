@@ -14,7 +14,7 @@ $hostnames = Get-Content $hostnamesFile
 # Loop through each hostname in the list and create a VM
 foreach ($computerName in $hostnames) {
     # Create a new VM configuration object
-    $vmConfig = New-VM -Name $computerName -Template $templateName -Datastore $datastore.Name
+    $vmConfig = New-VM -Name $computerName -Template $templateName -Datastore $datastore.Name -Location "Workstations"
 
     # Start the VM
     $vmConfig
